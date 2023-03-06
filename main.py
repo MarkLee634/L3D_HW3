@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import tqdm
 import imageio
+import sys
+
 
 from omegaconf import DictConfig
 from PIL import Image
@@ -35,6 +37,15 @@ from dataset import (
     trivial_collate,
 )
 
+'''
+1. RENDER
+python main.py --config-name=box
+2.
+
+3. NERF
+python main.py --config-name=nerf_lego
+
+'''
 
 # Model class containing:
 #   1) Implicit volume defining the scene
@@ -82,6 +93,7 @@ def render_images(
     model,
     cameras,
     image_size,
+    viz,
     save=False,
     file_prefix=''
 ):
@@ -94,15 +106,24 @@ def render_images(
         torch.cuda.empty_cache()
         camera = camera.to(device)
         xy_grid = get_pixels_from_image(image_size, camera) # TODO (1.3): implement in ray_utils.py
-        ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera) # TODO (1.3): implement in ray_utils.py
+        ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera, device) # TODO (1.3): implement in ray_utils.py
+
+  
+        # sys.exit()
 
         # TODO (1.3): Visualize xy grid using vis_grid
         if cam_idx == 0 and file_prefix == '':
-            pass
+            xy_grid_vis = vis_grid(xy_grid, image_size)
+            if viz:
+                plt.imshow(xy_grid_vis)
+                plt.show()
 
         # TODO (1.3): Visualize rays using vis_rays
         if cam_idx == 0 and file_prefix == '':
-            pass
+            rays_vis = vis_rays(ray_bundle, image_size)
+            if viz:
+                plt.imshow(rays_vis)
+                plt.show()
         
         # TODO (1.4): Implement point sampling along rays in sampler.py
         pass
@@ -137,16 +158,19 @@ def render_images(
 
 
 def render(
-    cfg,
+    cfg
 ):
     # Create model
     model = Model(cfg)
     model = model.cuda(); model.eval()
 
+    print(model)
+    # sys.exit()
+
     # Render spiral
     cameras = create_surround_cameras(3.0, n_poses=20)
     all_images = render_images(
-        model, cameras, cfg.data.image_size
+        model, cameras, cfg.data.image_size, cfg.viz
     )
     imageio.mimsave('images/part_1.gif', [np.uint8(im * 255) for im in all_images])
 
@@ -364,9 +388,16 @@ def train_nerf(
 
 @hydra.main(config_path='./configs', config_name='sphere')
 def main(cfg: DictConfig):
+    print("--------- init ---------")
     os.chdir(hydra.utils.get_original_cwd())
 
+
+    print(f" arg:", cfg.implicit_function.sdf.type )
+
+
+
     if cfg.type == 'render':
+        print(f"inside render")
         render(cfg)
     elif cfg.type == 'train':
         train(cfg)
