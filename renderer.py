@@ -27,7 +27,7 @@ class VolumeRenderer(torch.nn.Module):
         eps: float = 1e-10
     ):
 
-        print(f" ******* inside compute weights *******")
+        # print(f" ******* inside compute weights *******")
         #================================================================================================
         # # TODO (1.5): Compute transmittance using the equation described in the README
         # # transmittance T(x, x_ti) = T(x, x_ti-1) * exp(-σ_ti-1 * Δt_i-1)
@@ -69,8 +69,8 @@ class VolumeRenderer(torch.nn.Module):
             T_prev = T_curr
 
         T = torch.stack(T, dim=1)
-        transmittance = (1 - torch.exp(-rays_density * deltas))
-        print(f"shape of T {T.shape}, transmittance {transmittance.shape}")
+        transmittance = (1 - torch.exp(-rays_density * deltas + eps))
+        # print(f"shape of T {T.shape}, transmittance {transmittance.shape}")
         weights = T * transmittance
 
         return weights
@@ -94,7 +94,7 @@ class VolumeRenderer(torch.nn.Module):
         rays_feature_reshape = rays_feature.view(chunk_size, num_samples, -1)
         rays_feature_reshape = rays_feature_reshape.squeeze(2)
 
-        print(f"rays_feature_reshape shape: {rays_feature_reshape.shape}, weights shape: {weights.shape}")
+        # print(f"rays_feature_reshape shape: {rays_feature_reshape.shape}, weights shape: {weights.shape}")
 
         feature = torch.sum(weights * rays_feature_reshape, dim=1 )
 
@@ -108,7 +108,7 @@ class VolumeRenderer(torch.nn.Module):
     ):
         B = ray_bundle.shape[0]
 
-        print(f" ******* inside renderer foward *******")
+        # print(f" ******* inside renderer foward *******")
         
 
         # Process the chunks of rays.
@@ -139,21 +139,21 @@ class VolumeRenderer(torch.nn.Module):
                 dim=-1,
             )[..., None]
 
-            print(f" shape of delta {deltas.shape}, and density:  {density.shape}")
+            # print(f" shape of delta {deltas.shape}, and density:  {density.shape}")
 
             # Compute aggregation weights
             weights = self._compute_weights(
                 deltas.view(-1, n_pts, 1),
                 density.view(-1, n_pts, 1)
             ) 
-            print(f" weights shape: {weights.shape}")
+            # print(f" weights shape: {weights.shape}")
 
             # TODO (1.5): Render (color) features using weights
             
             # perform summation in VolumeRenderer._aggregate.
             # Use weights, and aggregation function to render color and depth (stored in RayBundle.sample_lengths)
             feature = self._aggregate(weights, feature)
-            print(f" feature shape: {feature.shape}")
+            # print(f" feature shape: {feature.shape}")
 
             # TODO (1.5): Render depth map
             # print(f" shape of depth_values: {depth_values.shape}") #torch.Size([32768, 65)]

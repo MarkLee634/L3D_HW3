@@ -74,6 +74,9 @@ def sample_images_at_xy(
     spatial_size = images.shape[1:-1]
 
     xy_grid = -xy_grid.view(batch_size, -1, 1, 2)
+    xy_grid = xy_grid.cuda()
+
+
 
     images_sampled = torch.nn.functional.grid_sample(
         images.permute(0, 3, 1, 2),
@@ -96,6 +99,11 @@ def get_pixels_from_image(image_size, camera):
     x = torch.linspace(0, W - 1, W)
     y = torch.linspace(0, H - 1, H)
 
+    # print(f" x {x} \n")
+    # print(f" y {y} \n")
+    # print(f" shape of x {x.shape} , y {y.shape} \n")
+    # sys.exit()
+
     #Convert to the range [-1, 1] in both x and y TODO (1.3):
     x = 2 * (x / (W - 1)) - 1
     y = 2 * (y / (H - 1)) - 1
@@ -114,7 +122,11 @@ def get_random_pixels_from_image(n_pixels, image_size, camera):
     xy_grid = get_pixels_from_image(image_size, camera)
     
     # TODO (2.1): Random subsampling of pixel coordinates
-    pass
+    # print(f"size of xy_grid: {xy_grid.shape}")
+    xy_grid_sub = xy_grid.unsqueeze(1)
+    # print(f"size of xy_grid: {xy_grid_sub.shape}")
+
+    xy_grid_sub = xy_grid_sub.index_select(0, torch.randperm(xy_grid_sub.shape[0]))
 
     # Return
     return xy_grid_sub.reshape(-1, 2)[:n_pixels]
@@ -153,6 +165,7 @@ def get_rays_from_pixels(xy_grid, image_size, camera, device):
 
     # TODO (1.3): Get normalized ray directions
     rays_d = unproject_points - rays_o
+    rays_d = rays_d / torch.norm(rays_d, dim=1, keepdim=True)
 
     # Create and return RayBundle
     return RayBundle(

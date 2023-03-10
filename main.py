@@ -141,9 +141,9 @@ def render_images(
 
         #reshape into ([65536 x 65, 3])
         pcloud_points = ray_bundle_sampled.sample_points.view(-1, 3)
-        print(f" pcloud_points: {pcloud_points.shape}")
+        # print(f" pcloud_points: {pcloud_points.shape}")
         pcloud_points = pcloud_points.unsqueeze(0)
-        print(f" pcloud_points: {pcloud_points.shape}")
+        # print(f" pcloud_points: {pcloud_points.shape}")
 
 
         print(f" cam_idx: {cam_idx} file_prefix: {file_prefix}")
@@ -161,7 +161,7 @@ def render_images(
                 plt.show()
             
                 
-
+        # sys.exit()
         # TODO (1.5): Implement rendering in renderer.py
         out = model(ray_bundle)
 
@@ -228,8 +228,9 @@ def render(
 def train(
     cfg
 ):
+    device = get_device()
     # Create model
-    model = Model(cfg)
+    model = Model(cfg, device)
     model = model.cuda(); model.train()
 
     # Create dataset 
@@ -252,7 +253,7 @@ def train(
     # Render images before training
     cameras = [item['camera'] for item in train_dataset]
     render_images(
-        model, cameras, image_size,
+        model, cameras, cfg, image_size, cfg.viz,
         save=True, file_prefix='images/part_2_before_training'
     )
 
@@ -267,14 +268,14 @@ def train(
 
             # Sample rays
             xy_grid = get_random_pixels_from_image(cfg.training.batch_size, image_size, camera) # TODO (2.1): implement in ray_utils.py
-            ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera)
+            ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera, device)
             rgb_gt = sample_images_at_xy(image, xy_grid)
 
             # Run model forward
             out = model(ray_bundle)
 
             # TODO (2.2): Calculate loss
-            loss = None
+            loss = torch.nn.functional.mse_loss(out['feature'], rgb_gt)
 
             # Backprop
             optimizer.zero_grad()
@@ -291,11 +292,11 @@ def train(
 
     # Render images after training
     render_images(
-        model, cameras, image_size,
+        model, cameras, cfg, image_size, cfg.viz,
         save=True, file_prefix='images/part_2_after_training'
     )
     all_images = render_images(
-        model, create_surround_cameras(3.0, n_poses=20), image_size, file_prefix='part_2'
+        model, create_surround_cameras(3.0, n_poses=20), cfg, image_size, cfg.viz, file_prefix='part_2'
     )
     imageio.mimsave('images/part_2.gif', [np.uint8(im * 255) for im in all_images])
 
