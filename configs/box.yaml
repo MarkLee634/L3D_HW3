@@ -2,7 +2,7 @@ seed: 1
 
 type: render
 
-viz: True
+viz: False
 
 data:
   image_size: [256, 256]

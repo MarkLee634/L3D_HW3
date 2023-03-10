@@ -125,15 +125,10 @@ def get_random_pixels_from_image(n_pixels, image_size, camera):
 def get_rays_from_pixels(xy_grid, image_size, camera, device):
     W, H = image_size[0], image_size[1]
 
-
     # print(f"size of xy_grid: {xy_grid.shape}")
-
 
     # use xy_grid to Map pixels to points on the image plane at Z=1 into ndc_points .. TODO (1.3):
     ndc_points = xy_grid
-
-
-
     ndc_points = torch.cat(
         [
             ndc_points,
@@ -149,7 +144,12 @@ def get_rays_from_pixels(xy_grid, image_size, camera, device):
     unproject_points = camera.unproject_points(ndc_points, world_coordinates=True, from_ndc=True)
 
     # TODO (1.3): Get ray origins from camera center
-    rays_o = camera.get_camera_center()
+    rays_o = camera.get_camera_center() #1x3
+    # print(f" size of rays_o: {rays_o.shape}")
+    #duplicate rays_o to match the shape of unproject_points
+    rays_o = rays_o.repeat(unproject_points.shape[0], 1)
+    # print(f" size of rays_o: {rays_o.shape}")
+    
 
     # TODO (1.3): Get normalized ray directions
     rays_d = unproject_points - rays_o

@@ -37,6 +37,12 @@ from dataset import (
     trivial_collate,
 )
 
+from render_functions import (
+    render_points
+)
+
+from sampler import StratifiedRaysampler
+
 '''
 1. RENDER
 python main.py --config-name=box
@@ -55,7 +61,8 @@ python main.py --config-name=nerf_lego
 class Model(torch.nn.Module):
     def __init__(
         self,
-        cfg
+        cfg, 
+        device
     ):
         super().__init__()
 
@@ -71,7 +78,8 @@ class Model(torch.nn.Module):
 
         # Initialize volume renderer
         self.renderer = renderer_dict[cfg.renderer.type](
-            cfg.renderer
+            cfg.renderer,
+            device
         )
     
     def forward(
@@ -92,6 +100,7 @@ class Model(torch.nn.Module):
 def render_images(
     model,
     cameras,
+    cfg,
     image_size,
     viz,
     save=False,
@@ -99,6 +108,7 @@ def render_images(
 ):
     all_images = []
     device = list(model.parameters())[0].device
+    print(f"device: {device}")
 
     for cam_idx, camera in enumerate(cameras):
         print(f'Rendering image {cam_idx}')
@@ -108,7 +118,7 @@ def render_images(
         xy_grid = get_pixels_from_image(image_size, camera) # TODO (1.3): implement in ray_utils.py
         ray_bundle = get_rays_from_pixels(xy_grid, image_size, camera, device) # TODO (1.3): implement in ray_utils.py
 
-  
+        # print(f" ray bundle origin: {ray_bundle.origins.shape} direction: {ray_bundle.directions.shape}")
         # sys.exit()
 
         # TODO (1.3): Visualize xy grid using vis_grid
@@ -125,15 +135,37 @@ def render_images(
                 plt.imshow(rays_vis)
                 plt.show()
         
-        # TODO (1.4): Implement point sampling along rays in sampler.py
-        pass
+        # TODO (1.4): Implement point sampling along rays in the function StratifiedSampler() in sampler.py
+        sampler_model = StratifiedRaysampler(cfg.sampler)
+        ray_bundle_sampled = sampler_model(ray_bundle, device) #([65536, 65, 3])
 
-        # TODO (1.4): Visualize sample points as point cloud
+        #reshape into ([65536 x 65, 3])
+        pcloud_points = ray_bundle_sampled.sample_points.view(-1, 3)
+        print(f" pcloud_points: {pcloud_points.shape}")
+        pcloud_points = pcloud_points.unsqueeze(0)
+        print(f" pcloud_points: {pcloud_points.shape}")
+
+
+        print(f" cam_idx: {cam_idx} file_prefix: {file_prefix}")
+        print(f"viz: {viz} save: {save}")
+        
+
+        # TODO (1.4): Visualize sample points as point cloud using render_points
         if cam_idx == 0 and file_prefix == '':
-            pass
+            save_filename = 'images/Q1_4.png'
+
+            rendered_img = render_points(save_filename, pcloud_points, image_size, color=[0.7, 0.7, 1], device=device)
+
+            if viz:
+                plt.imshow(rendered_img)
+                plt.show()
+            
+                
 
         # TODO (1.5): Implement rendering in renderer.py
         out = model(ray_bundle)
+
+        
 
         # Return rendered features (colors)
         image = np.array(
@@ -145,23 +177,41 @@ def render_images(
 
         # TODO (1.5): Visualize depth
         if cam_idx == 2 and file_prefix == '':
-            pass
+            depth_img = np.array(
+                out['depth'].view(
+                    image_size[1], image_size[0]
+                ).detach().cpu()
+            )
+            plt.imsave("images/depth.png", depth_img)
 
         # Save
         if save:
             plt.imsave(
-                f'{file_prefix}_{cam_idx}.png',
+                f'{"images/"}_{cam_idx}.png',
                 image
             )
     
     return all_images
 
 
+def get_device():
+    """
+    Checks if GPU is available and returns device accordingly.
+    """
+    if torch.cuda.is_available():
+        device = torch.device("cuda:0")
+    else:
+        device = torch.device("cpu")
+    return device
+
+
 def render(
     cfg
 ):
+
+    device = get_device()
     # Create model
-    model = Model(cfg)
+    model = Model(cfg, device)
     model = model.cuda(); model.eval()
 
     print(model)
@@ -170,7 +220,7 @@ def render(
     # Render spiral
     cameras = create_surround_cameras(3.0, n_poses=20)
     all_images = render_images(
-        model, cameras, cfg.data.image_size, cfg.viz
+        model, cameras, cfg, cfg.data.image_size, cfg.viz, save=True, file_prefix=''
     )
     imageio.mimsave('images/part_1.gif', [np.uint8(im * 255) for im in all_images])
 
