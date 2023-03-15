@@ -187,7 +187,7 @@ def render_images(
         # Save
         if save:
             plt.imsave(
-                f'{"images/"}_{cam_idx}.png',
+                f'{file_prefix}_{cam_idx}.png',
                 image
             )
     
@@ -303,7 +303,8 @@ def train(
 
 def create_model(cfg):
     # Create model
-    model = Model(cfg)
+    device = get_device()
+    model = Model(cfg, device)
     model.cuda(); model.train()
 
     # Load checkpoints
@@ -356,9 +357,12 @@ def create_model(cfg):
 def train_nerf(
     cfg
 ):
+
+    device = get_device()
     # Create model
     model, optimizer, lr_scheduler, start_epoch, checkpoint_path = create_model(cfg)
 
+    print(f"model {model}")
     # Load the training/validation data.
     train_dataset, val_dataset, _ = get_nerf_datasets(
         dataset_name=cfg.data.dataset_name,
@@ -387,7 +391,7 @@ def train_nerf(
                 cfg.training.batch_size, cfg.data.image_size, camera
             )
             ray_bundle = get_rays_from_pixels(
-                xy_grid, cfg.data.image_size, camera
+                xy_grid, cfg.data.image_size, camera, device
             )
             rgb_gt = sample_images_at_xy(image, xy_grid)
 
@@ -395,7 +399,7 @@ def train_nerf(
             out = model(ray_bundle)
 
             # TODO (3.1): Calculate loss
-            loss = None
+            loss = torch.nn.functional.mse_loss(out['feature'], rgb_gt)
 
             # Take the training step.
             optimizer.zero_grad()
@@ -432,8 +436,12 @@ def train_nerf(
             with torch.no_grad():
                 test_images = render_images(
                     model, create_surround_cameras(4.0, n_poses=20, up=(0.0, 0.0, 1.0), focal_length=2.0),
-                    cfg.data.image_size, file_prefix='nerf'
+                     cfg, cfg.data.image_size, cfg.viz, file_prefix='nerf'
                 )
+
+                # render_images(
+        # model, create_surround_cameras(3.0, n_poses=20), cfg, image_size, cfg.viz, file_prefix='part_2'
+
                 imageio.mimsave('images/part_3.gif', [np.uint8(im * 255) for im in test_images])
 
 
@@ -443,7 +451,7 @@ def main(cfg: DictConfig):
     os.chdir(hydra.utils.get_original_cwd())
 
 
-    print(f" arg:", cfg.implicit_function.sdf.type )
+    # print(f" arg:", cfg.implicit_function.sdf.type )
 
 
 

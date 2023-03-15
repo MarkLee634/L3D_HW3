@@ -225,6 +225,7 @@ class NeuralRadianceField(torch.nn.Module):
         cfg,
     ):
         super().__init__()
+        # https://papers-100-lines.medium.com/neural-radiance-fields-nerf-tutorial-in-100-lines-of-pytorch-code-365ef2a1013
 
         self.harmonic_embedding_xyz = HarmonicEmbedding(3, cfg.n_harmonic_functions_xyz)
         self.harmonic_embedding_dir = HarmonicEmbedding(3, cfg.n_harmonic_functions_dir)
@@ -232,7 +233,30 @@ class NeuralRadianceField(torch.nn.Module):
         embedding_dim_xyz = self.harmonic_embedding_xyz.output_dim
         embedding_dim_dir = self.harmonic_embedding_dir.output_dim
 
-        pass
+        # MLPWithInputSkips                   (n_layers,     input_dim,  output_dim,      skip_dim,             hidden_dim,             input_skips)
+        output_dim = 128
+        self.MLP = MLPWithInputSkips(cfg.n_layers_xyz, embedding_dim_xyz, output_dim , embedding_dim_xyz, cfg.n_hidden_neurons_xyz, cfg.append_xyz)
+
+        #MLP layers
+        self.linear1 = torch.nn.Linear(output_dim, 4)
+        self.linear2 = torch.nn.Linear(output_dim, 64)
+        self.relu = torch.nn.ReLU()
+        self.sigmoid = torch.nn.Sigmoid()
+        
+    def forward(self, ray_bundle):
+        # TODO (forwards pass)
+        direction_embedding = self.harmonic_embedding_dir(ray_bundle.directions)
+        position_embedding = self.harmonic_embedding_xyz(ray_bundle.sample_points.view(-1, 3))
+
+        output = {"density": None, "feature": None}
+        out = self.linear1(self.MLP(position_embedding, position_embedding))
+
+        output["density"] = self.relu(out[:, 0])
+        output["feature"] = self.sigmoid(out[:, 1:])
+
+        return output
+
+
 
 
 volume_dict = {
